@@ -300,9 +300,10 @@ export default function Home() {
   return (
     <main className="max-w-3xl mx-auto p-4 md:p-8 min-h-screen flex flex-col items-center justify-center">
       <div className="mc-panel w-full p-6 md:p-10 flex flex-col gap-6 shadow-2xl">
-        <div className="text-center">
+        <div className="text-center relative">
           <h1 className="mc-text text-2xl md:text-3xl lg:text-4xl text-[#3b3b3b] drop-shadow-sm mb-2">Resource Pack</h1>
           <h2 className="mc-text text-xl md:text-2xl text-[#3b3b3b] drop-shadow-sm">Merger</h2>
+          <span className="absolute top-0 right-0 mc-item px-2 py-1 text-[8px] sm:text-[10px] transform translate-x-2 -translate-y-2">v1.1</span>
           <div className="h-1 w-full bg-[#555] mt-4 border-b-2 border-white opacity-50"></div>
         </div>
 
