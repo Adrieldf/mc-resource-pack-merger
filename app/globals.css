@@ -1,26 +1,119 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #1e1e1e;
+  --foreground: #ffffff;
+  --mc-panel-bg: #c6c6c6;
+  --mc-panel-border-in: #ffffff;
+  --mc-panel-border-out: #555555;
+  --font-sans: var(--font-inter);
+  --font-press-start: var(--font-press-start);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-press-start);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: url("data:image/svg+xml,%3Csvg width='64' height='64' viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h64v64H0z' fill='%23222'/%3E%3Cpath d='M0 0h32v32H0zM32 32h32v32H32z' fill='%231a1a1a'/%3E%3C/svg%3E");
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), sans-serif;
+}
+
+.mc-panel {
+  background-color: var(--mc-panel-bg);
+  border: 4px solid #000;
+  box-shadow: inset 4px 4px 0px 0px var(--mc-panel-border-in),
+              inset -4px -4px 0px 0px var(--mc-panel-border-out);
+  color: #333;
+  image-rendering: pixelated;
+}
+
+.mc-button {
+  background-color: #c6c6c6;
+  border: 2px solid #000;
+  box-shadow: inset 2px 2px 0px 0px #ffffff,
+              inset -2px -2px 0px 0px #555555;
+  color: #333;
+  font-family: var(--font-press-start), monospace;
+  text-transform: uppercase;
+  user-select: none;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.mc-button:hover:not(:disabled) {
+  background-color: #aac5e2;
+  box-shadow: inset 2px 2px 0px 0px #d4e3f4,
+              inset -2px -2px 0px 0px #58799e;
+}
+
+.mc-button:active:not(:disabled) {
+  box-shadow: inset 2px 2px 0px 0px #555555,
+              inset -2px -2px 0px 0px #ffffff;
+}
+
+.mc-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* For green "merge" button */
+.mc-button-success {
+  background-color: #3c8527;
+  box-shadow: inset 2px 2px 0px 0px #5cbb41,
+              inset -2px -2px 0px 0px #1e4513;
+  color: #fff;
+}
+.mc-button-success:hover:not(:disabled) {
+  background-color: #4ca632;
+  box-shadow: inset 2px 2px 0px 0px #70d155,
+              inset -2px -2px 0px 0px #245217;
+}
+.mc-button-success:active:not(:disabled) {
+  box-shadow: inset 2px 2px 0px 0px #1e4513,
+              inset -2px -2px 0px 0px #5cbb41;
+}
+
+/* For red "remove" button */
+.mc-button-danger {
+  background-color: #a52a2a;
+  box-shadow: inset 2px 2px 0px 0px #cd5c5c,
+              inset -2px -2px 0px 0px #5c1414;
+  color: #fff;
+}
+.mc-button-danger:hover:not(:disabled) {
+  background-color: #b53b3b;
+  box-shadow: inset 2px 2px 0px 0px #e07070,
+              inset -2px -2px 0px 0px #6d1b1b;
+}
+.mc-button-danger:active:not(:disabled) {
+  box-shadow: inset 2px 2px 0px 0px #5c1414,
+              inset -2px -2px 0px 0px #cd5c5c;
+}
+
+/* For lists/containers */
+.mc-item {
+  background-color: #929292;
+  border: 2px solid #333;
+  box-shadow: inset 2px 2px 0px 0px #c6c6c6,
+              inset -2px -2px 0px 0px #555555;
+  color: #fff;
+  text-shadow: 2px 2px 0 #333;
+}
+
+/* Typography elements */
+.mc-text {
+  font-family: var(--font-press-start), monospace;
+  text-transform: uppercase;
+}
+
+.mc-label {
+  color: #fff;
+  text-shadow: 2px 2px 0 #333;
+  font-family: var(--font-press-start), monospace;
 }
