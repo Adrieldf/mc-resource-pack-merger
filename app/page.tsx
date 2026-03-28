@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import JSZip from "jszip";
-import { Dropbox } from "dropbox";
+import { Dropbox, DropboxAuth } from "dropbox";
 import "isomorphic-fetch";
 
 export default function Home() {
@@ -17,50 +17,6 @@ export default function Home() {
   const [packSha1, setPackSha1] = useState<string | null>(null);
   const [packName, setPackName] = useState("Merged_Resource_Pack");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Handle Dropbox Redirect Callback
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
-
-    if (code) {
-      log("Dropbox authorization detected. Exchanging code...");
-      exchangeDropboxCode(code);
-    }
-  }, []);
-
-  // Exchange Code for Token and Upload
-  const exchangeDropboxCode = async (code: string) => {
-    setIsUploading(true);
-    try {
-      const dbx = new Dropbox({ clientId: process.env.NEXT_PUBLIC_DROPBOX_APP_KEY || "YOUR_DROPBOX_APP_KEY" });
-      const verifier = sessionStorage.getItem("dropbox_code_verifier");
-
-      if (!verifier) throw new Error("Missing code verifier. Please try again.");
-
-      const authRes = await dbx.auth.getAccessTokenFromCode(window.location.origin + window.location.pathname, code);
-      const accessToken = (authRes.result as any).access_token;
-
-      // Clean the URL (remove query params)
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Now we need the file! We can't keep blobs across redirects, 
-      // so we have to use the sessionStorage trick or just tell user to click publish again.
-      // Better: In a real app we'd store the file in IndexedDB, but for now let's just 
-      // see if the blob URL still works (it won't).
-      // Solution: We'll store the binary string in sessionStorage if it's small, 
-      // but resource packs are big.
-      // Better Solution: We will NOT redirect if we have a valid token.
-
-      log("Login successful! Requesting upload...");
-      // For this workflow, the redirect breaks the React state. 
-      // I'll refactor handlePublishToDropbox to handle the whole flow.
-    } catch (err: any) {
-      log(`Dropbox Auth Error: ${err.message}`);
-    } finally {
-      setIsUploading(false);
-    }
-  };
 
   // Cleanup object URLs on unmount to avert memory leaks
   useEffect(() => {
@@ -323,9 +279,9 @@ export default function Home() {
 
     if (!code) {
       log("Opening Dropbox authorization popup...");
-      const dbx = new Dropbox({ clientId: appKey });
+      const dbxAuth = new DropboxAuth({ clientId: appKey });
       const redirectUri = window.location.origin + window.location.pathname.replace(/\/$/, '') + '/dropbox-callback.html';
-      const authUrl = await dbx.auth.getAuthenticationUrl(
+      const authUrl = await dbxAuth.getAuthenticationUrl(
         redirectUri,
         undefined,
         'code',
@@ -341,7 +297,7 @@ export default function Home() {
         if (event.origin !== window.location.origin) return;
         if (event.data?.type === 'dropbox_auth_code') {
           window.removeEventListener('message', handleMessage);
-          const tokenRes = await dbx.auth.getAccessTokenFromCode(redirectUri, event.data.code);
+          const tokenRes = await dbxAuth.getAccessTokenFromCode(redirectUri, event.data.code);
           uploadToDropbox((tokenRes.result as any).access_token);
         }
       };
