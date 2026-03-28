@@ -46,6 +46,7 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+          NEXT_PUBLIC_DROPBOX_APP_KEY: ${{ secrets.NEXT_PUBLIC_DROPBOX_APP_KEY }}
         
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
