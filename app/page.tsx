@@ -295,6 +295,11 @@ export default function Home() {
     client.requestAccessToken();
   };
 
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    log(`Copied ${label} to clipboard!`);
+  };
+
   const safePackName = packName.trim().replace(/[^a-z0-9_\-]/gi, '_') || "Merged_Resource_Pack";
 
   return (
@@ -388,20 +393,70 @@ export default function Home() {
             </div>
 
             {driveUrl && (
-              <div className="mc-item p-4 border-2 border-blue-400 !bg-blue-900 flex flex-col gap-3">
-                <div className="text-center">
-                  <span className="block mb-2 font-bold font-sans text-blue-200">Direct Download URL:</span>
-                  <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="mc-text text-[10px] text-white hover:text-blue-300 break-all underline">
-                    {driveUrl}
-                  </a>
+              <div className="mc-item p-4 border-2 border-blue-400 !bg-blue-900 flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <span className="block font-bold font-sans text-blue-200 text-xs text-center">Direct Download URL:</span>
+                  <div className="flex gap-2">
+                    <input 
+                      readOnly 
+                      value={driveUrl} 
+                      className="mc-item flex-1 bg-black/30 border-2 border-blue-800 p-2 text-[10px] text-white truncate font-mono"
+                    />
+                    <button 
+                      onClick={() => copyToClipboard(driveUrl, "Download URL")}
+                      className="mc-button px-3 py-1 text-[10px]"
+                      title="Copy URL"
+                    >
+                      📋
+                    </button>
+                  </div>
                 </div>
                 
                 {packSha1 && (
-                  <div className="border-t border-blue-400 pt-3 text-center">
-                    <span className="block mb-1 font-bold font-sans text-blue-200 text-xs">resource-pack-sha1 (for server.properties):</span>
-                    <code className="bg-black/50 px-2 py-1 text-green-400 text-xs break-all block">
-                      {packSha1}
-                    </code>
+                  <div className="border-t border-blue-400/30 pt-4 flex flex-col gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* SHA-1 Section */}
+                      <div className="flex flex-col gap-2">
+                        <span className="block font-bold font-sans text-blue-200 text-[10px]">resource-pack-sha1:</span>
+                        <div className="flex gap-2">
+                          <input 
+                            readOnly 
+                            value={packSha1} 
+                            className="mc-item flex-1 bg-black/30 border-2 border-blue-800 p-2 text-[10px] text-green-400 truncate font-mono"
+                          />
+                          <button 
+                            onClick={() => copyToClipboard(packSha1, "SHA-1")}
+                            className="mc-button px-3 py-1 text-[10px]"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Escaped URL for server.properties */}
+                      <div className="flex flex-col gap-2">
+                        <span className="block font-bold font-sans text-blue-200 text-[10px]">resource-pack (escaped):</span>
+                        <div className="flex gap-2">
+                          <input 
+                            readOnly 
+                            value={driveUrl.replace(/=/g, "\\=").replace(/:/g, "\\:")} 
+                            className="mc-item flex-1 bg-black/30 border-2 border-blue-800 p-2 text-[10px] text-yellow-300 truncate font-mono"
+                          />
+                          <button 
+                            onClick={() => copyToClipboard(driveUrl.replace(/=/g, "\\=").replace(/:/g, "\\:"), "Escaped URL")}
+                            className="mc-button px-3 py-1 text-[10px]"
+                          >
+                            📋
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/40 p-3 border border-blue-500/30 rounded text-center">
+                      <p className="text-[9px] text-blue-100 font-sans leading-relaxed">
+                        Tip: In server.properties, use the <strong>escaped URL</strong> to ensure the game correctly parses the Google Drive parameters.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
