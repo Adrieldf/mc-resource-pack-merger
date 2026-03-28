@@ -362,7 +362,7 @@ export default function Home() {
         <div className="text-center relative">
           <h1 className="mc-text text-2xl md:text-3xl lg:text-4xl text-[#3b3b3b] drop-shadow-sm mb-2">Resource Pack</h1>
           <h2 className="mc-text text-xl md:text-2xl text-[#3b3b3b] drop-shadow-sm">Merger</h2>
-          <span className="absolute top-0 right-0 mc-item px-2 py-1 text-[8px] sm:text-[10px] transform translate-x-2 -translate-y-2">v1.1</span>
+          <span className="absolute top-0 right-0 mc-item px-2 py-1 text-[8px] sm:text-[10px] transform translate-x-2 -translate-y-2">v1.2</span>
           <div className="h-1 w-full bg-[#555] mt-4 border-b-2 border-white opacity-50"></div>
         </div>
 
