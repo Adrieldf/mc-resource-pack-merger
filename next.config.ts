@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: '/mc-resource-pack-merger',
+  basePath: process.env.NODE_ENV === 'production' ? '/mc-resource-pack-merger' : '',
   images: {
     unoptimized: true, // Required for static export
   },
