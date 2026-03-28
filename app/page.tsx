@@ -10,6 +10,10 @@ export default function Home() {
   const [mergedPackUrl, setMergedPackUrl] = useState<string | null>(null);
   const [previewImages, setPreviewImages] = useState<{path: string, url: string}[]>([]);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  const [packSha1, setPackSha1] = useState<string | null>(null);
+  const [packName, setPackName] = useState("Merged_Resource_Pack");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Cleanup object URLs on unmount to avert memory leaks
@@ -53,6 +57,8 @@ export default function Home() {
     setMergedPackUrl(null);
     setPreviewImages([]);
     setIsPreviewModalOpen(false);
+    setDriveUrl(null);
+    setPackSha1(null);
 
     try {
       const mergedZip = new JSZip();
@@ -65,17 +71,54 @@ export default function Home() {
         log(`Extracting: ${file.name}...`);
         const zip = await JSZip.loadAsync(file);
 
+        // Detect if the zip has a single root folder wrapping everything
+        const entries = Object.keys(zip.files).filter(k => !zip.files[k].dir);
+        let commonPrefix = "";
+        if (entries.length > 0) {
+          const firstParts = entries[0].split('/');
+          if (firstParts.length > 1) {
+            const potentialRoot = firstParts[0] + '/';
+            if (entries.every(e => e.startsWith(potentialRoot))) {
+              commonPrefix = potentialRoot;
+              log(`Note: Stripping root folder "${potentialRoot}" from ${file.name}`);
+            }
+          }
+        }
+
         const promises: Promise<void>[] = [];
 
-        zip.forEach((relativePath, zipEntry) => {
+        zip.forEach((originalPath, zipEntry) => {
           if (zipEntry.dir) return;
 
-          const isAtlas = relativePath.startsWith("assets/minecraft/atlases/") && relativePath.endsWith(".json");
-          const isFont = relativePath.startsWith("assets/minecraft/font/") && relativePath.endsWith(".json");
-          const isSounds = relativePath === "assets/minecraft/sounds.json";
-          const isMeta = relativePath === "pack.mcmeta";
+          // Strip the common root prefix if it exists
+          let relativePath = originalPath;
+          if (commonPrefix && relativePath.startsWith(commonPrefix)) {
+            relativePath = relativePath.substring(commonPrefix.length);
+          }
 
-          if (isAtlas || isFont || isSounds || isMeta) {
+          // Ignore junk files
+          if (relativePath.startsWith("__MACOSX/") || relativePath.includes(".DS_Store") || relativePath.endsWith("desktop.ini")) {
+            return;
+          }
+
+          const pathParts = relativePath.split('/');
+          const isUnderAssets = pathParts[0] === 'assets';
+          
+          const isAtlas = isUnderAssets && pathParts[2] === 'atlases' && relativePath.endsWith(".json");
+          const isFont = isUnderAssets && pathParts[2] === 'font' && relativePath.endsWith(".json");
+          const isSounds = isUnderAssets && pathParts[2] === 'sounds.json';
+          const isItemModel = isUnderAssets && pathParts[2] === 'models' && pathParts[3] === 'item' && relativePath.endsWith(".json");
+          const isMeta = relativePath === "pack.mcmeta";
+          const isPackIcon = relativePath === "pack.png";
+
+          // Special logic: only take pack.mcmeta and pack.png from the HIGHEST priority pack (last in reversed loop)
+          const isHighestPriority = file === reversed[reversed.length - 1];
+          if ((isMeta || isPackIcon) && !isHighestPriority) {
+            log(`Ignoring redundant ${relativePath} from lower priority pack: ${file.name}`);
+            return;
+          }
+
+          if (isAtlas || isFont || isSounds || isMeta || isItemModel) {
             promises.push(
               zipEntry.async("string").then((text) => {
                 try {
@@ -83,30 +126,30 @@ export default function Home() {
 
                   if (isAtlas) {
                     const current = jsonStore.get(relativePath) || { sources: [] };
-                    if (parsed.sources) current.sources.push(...parsed.sources);
+                    if (parsed.sources) current.sources.unshift(...parsed.sources);
                     jsonStore.set(relativePath, current);
                   }
                   else if (isFont) {
                     const current = jsonStore.get(relativePath) || { providers: [] };
-                    if (parsed.providers) current.providers.push(...parsed.providers);
+                    if (parsed.providers) current.providers.unshift(...parsed.providers);
                     jsonStore.set(relativePath, current);
                   }
                   else if (isSounds) {
                     const current = jsonStore.get(relativePath) || {};
-                    Object.assign(current, parsed); // Higher priority overwrites conflicting sound events
+                    Object.assign(current, parsed);
+                    jsonStore.set(relativePath, current);
+                  }
+                  else if (isItemModel) {
+                    const current = jsonStore.get(relativePath) || parsed;
+                    if (current !== parsed && parsed.overrides) {
+                      if (!current.overrides) current.overrides = [];
+                      current.overrides.unshift(...parsed.overrides);
+                    }
                     jsonStore.set(relativePath, current);
                   }
                   else if (isMeta) {
-                    const current = jsonStore.get(relativePath);
-                    if (!current) {
-                      jsonStore.set(relativePath, parsed);
-                    } else {
-                      const curFormat = current.pack?.pack_format || 0;
-                      const newFormat = parsed.pack?.pack_format || 0;
-                      if (newFormat > curFormat) current.pack.pack_format = newFormat;
-                      if (parsed.pack?.description) current.pack.description = parsed.pack.description;
-                      jsonStore.set(relativePath, current);
-                    }
+                    // Since we already filtered for highest priority above, we just set it.
+                    jsonStore.set(relativePath, parsed);
                   }
                 } catch (e) {
                   log(`Warning: Malformed JSON ignored in ${relativePath}`);
@@ -114,7 +157,7 @@ export default function Home() {
               })
             );
           } else {
-            // Standard files (textures, models) overwrite entirely
+            // Standard files (textures, models, icons) overwrite entirely
             promises.push(
               zipEntry.async("uint8array").then((data) => {
                 mergedZip.file(relativePath, data);
@@ -134,6 +177,14 @@ export default function Home() {
       log("Compressing final merged pack...");
       const blob = await mergedZip.generateAsync({ type: "blob", compression: "DEFLATE" });
       const blobUrl = URL.createObjectURL(blob);
+
+      log("Calculating SHA-1 hash...");
+      const arrayBuffer = await blob.arrayBuffer();
+      const digest = await crypto.subtle.digest("SHA-1", arrayBuffer);
+      const sha1 = Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+      setPackSha1(sha1);
 
       log("Extracting preview images...");
       const images: {path: string, url: string}[] = [];
@@ -166,6 +217,86 @@ export default function Home() {
     }
   };
 
+  const uploadToGoogleDrive = async (accessToken: string) => {
+    setIsUploading(true);
+    setDriveUrl(null);
+    log("Uploading to Google Drive...");
+    try {
+      if (!mergedPackUrl) throw new Error("No merged pack found");
+      const blob = await fetch(mergedPackUrl).then((r) => r.blob());
+
+      // 1. Upload using simple media upload (creates 'Untitled' file)
+      const uploadRes = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=media", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/zip",
+        },
+        body: blob,
+      });
+
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const fileData = await uploadRes.json();
+      const fileId = fileData.id;
+
+      // 2. Rename the file
+      log("Renaming uploaded file...");
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: `${safePackName}.zip` }),
+      });
+
+      // 3. Set permissions to anyone with the link
+      log("Setting file permissions to public...");
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ role: "reader", type: "anyone" }),
+      });
+
+      const directUrl = `https://docs.google.com/uc?export=download&id=${fileId}`;
+      setDriveUrl(directUrl);
+      log(`Success! Drive Link generated.`);
+    } catch (err: any) {
+      log(`Drive Error: ${err.message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handlePublishToDrive = () => {
+    if (typeof window === "undefined" || !(window as any).google) {
+      return alert("Google API not loaded. Check your connection or disable adblockers.");
+    }
+    
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId || clientId === "your_client_id_here") {
+      return alert("Missing Google Client ID. Please configure NEXT_PUBLIC_GOOGLE_CLIENT_ID in your .env.local file.");
+    }
+
+    const client = (window as any).google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: "https://www.googleapis.com/auth/drive.file",
+      callback: (response: any) => {
+        if (response.access_token) {
+          uploadToGoogleDrive(response.access_token);
+        } else {
+          log("Google Login Failed or Cancelled.");
+        }
+      },
+    });
+    client.requestAccessToken();
+  };
+
+  const safePackName = packName.trim().replace(/[^a-z0-9_\-]/gi, '_') || "Merged_Resource_Pack";
+
   return (
     <main className="max-w-3xl mx-auto p-4 md:p-8 min-h-screen flex flex-col items-center justify-center">
       <div className="mc-panel w-full p-6 md:p-10 flex flex-col gap-6 shadow-2xl">
@@ -173,6 +304,17 @@ export default function Home() {
           <h1 className="mc-text text-2xl md:text-3xl lg:text-4xl text-[#3b3b3b] drop-shadow-sm mb-2">Resource Pack</h1>
           <h2 className="mc-text text-xl md:text-2xl text-[#3b3b3b] drop-shadow-sm">Merger</h2>
           <div className="h-1 w-full bg-[#555] mt-4 border-b-2 border-white opacity-50"></div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="mc-label text-sm uppercase tracking-wide">Pack Output Name</label>
+          <input 
+            type="text" 
+            value={packName}
+            onChange={(e) => setPackName(e.target.value)}
+            className="mc-item w-full p-4 bg-[#1a1a1a] border-4 border-[#000] focus:border-yellow-400 outline-none font-sans font-bold"
+            placeholder="Name your pack..."
+          />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -226,15 +368,45 @@ export default function Home() {
           <div className="flex flex-col gap-4 mt-4 border-t-4 border-[#333] pt-6">
             <h3 className="mc-text text-xl text-center text-[#3b3b3b]">Ready to Download</h3>
             
-            <a 
-              href={mergedPackUrl} 
-              download="Merged_Resource_Pack.zip"
-              className="mc-button mc-button-success w-full py-4 text-lg text-center block"
-            >
-              📥 Download Pack
-            </a>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <a 
+                href={mergedPackUrl} 
+                download={`${safePackName}.zip`}
+                className="mc-button mc-button-success py-4 text-base sm:text-lg text-center block w-full"
+              >
+                📥 Download
+              </a>
 
-            <div className="flex items-center justify-between">
+              <button 
+                onClick={handlePublishToDrive}
+                disabled={isUploading}
+                className={`mc-button py-4 text-base sm:text-lg w-full ${isUploading ? 'animate-pulse opacity-50' : ''}`}
+              >
+                ☁️ {isUploading ? "Uploading..." : "Publish to Drive"}
+              </button>
+            </div>
+
+            {driveUrl && (
+              <div className="mc-item p-4 border-2 border-blue-400 !bg-blue-900 flex flex-col gap-3">
+                <div className="text-center">
+                  <span className="block mb-2 font-bold font-sans text-blue-200">Direct Download URL:</span>
+                  <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="mc-text text-[10px] text-white hover:text-blue-300 break-all underline">
+                    {driveUrl}
+                  </a>
+                </div>
+                
+                {packSha1 && (
+                  <div className="border-t border-blue-400 pt-3 text-center">
+                    <span className="block mb-1 font-bold font-sans text-blue-200 text-xs">resource-pack-sha1 (for server.properties):</span>
+                    <code className="bg-black/50 px-2 py-1 text-green-400 text-xs break-all block">
+                      {packSha1}
+                    </code>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mt-2">
               <strong className="mc-label text-sm mt-2">Texture Preview ({previewImages.length} items):</strong>
               <div className="flex gap-2">
                 {previewImages.length > 0 && (
