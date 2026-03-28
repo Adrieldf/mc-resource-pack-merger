@@ -1,13 +1,30 @@
 <!DOCTYPE html>
 <html>
 <body>
+  <div style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+    <h2>Completing Dropbox Login...</h2>
+    <p>This window should close automatically.</p>
+  </div>
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
+    const error = urlParams.get('error');
+
     if (code) {
-      window.opener.postMessage({ type: 'dropbox_auth_code', code: code }, window.location.origin);
+      if (window.opener) {
+        window.opener.postMessage({ type: 'dropbox_auth_code', code: code }, window.location.origin);
+      } else {
+        // Fallback: Using localStorage if window reference is lost (common in security-hardened browsers)
+        localStorage.setItem('dropbox_auth_code', code);
+      }
+    } else if (error) {
+      console.error("Dropbox Auth Error:", error);
     }
-    window.close();
+    
+    // Close the popup shortly after notifying the parent
+    setTimeout(() => {
+        window.close();
+    }, 500);
   </script>
 </body>
 </html>

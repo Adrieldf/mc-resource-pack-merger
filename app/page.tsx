@@ -292,16 +292,40 @@ export default function Home() {
       );
 
       const popup = window.open(authUrl.toString(), "Dropbox Auth", "width=600,height=700");
+      
+      // Clean up previous attempts
+      localStorage.removeItem('dropbox_auth_code');
 
       const handleMessage = async (event: MessageEvent) => {
         if (event.origin !== window.location.origin) return;
-        if (event.data?.type === 'dropbox_auth_code') {
+        if (event.data?.type === 'dropbox_auth_code' && event.data.code) {
           window.removeEventListener('message', handleMessage);
+          if (typeof storageCheckInterval !== 'undefined') clearInterval(storageCheckInterval);
+          
           const tokenRes = await dbxAuth.getAccessTokenFromCode(redirectUri, event.data.code);
           uploadToDropbox((tokenRes.result as any).access_token);
         }
       };
+      
       window.addEventListener('message', handleMessage);
+
+      // Fallback: Poll localStorage for the code if postMessage fails (security restriction)
+      const storageCheckInterval = setInterval(async () => {
+        const fallbackCode = localStorage.getItem('dropbox_auth_code');
+        if (fallbackCode) {
+          clearInterval(storageCheckInterval);
+          localStorage.removeItem('dropbox_auth_code');
+          window.removeEventListener('message', handleMessage);
+          
+          const tokenRes = await dbxAuth.getAccessTokenFromCode(redirectUri, fallbackCode);
+          uploadToDropbox((tokenRes.result as any).access_token);
+        }
+        
+        // If popup is closed without giving a code, stop checking
+        if (popup?.closed) {
+          clearInterval(storageCheckInterval);
+        }
+      }, 500);
     }
   };
 
