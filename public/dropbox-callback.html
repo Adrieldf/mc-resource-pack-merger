@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+      window.opener.postMessage({ type: 'dropbox_auth_code', code: code }, window.location.origin);
+    }
+    window.close();
+  </script>
+</body>
+</html>
